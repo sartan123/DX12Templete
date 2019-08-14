@@ -182,11 +182,12 @@ HRESULT DX12Renderer::Render() {
 BOOL DX12Renderer::ResourceSetup() {
 	HRESULT hr;
 	//  頂点情報
-	MyVertex vertices_array[] = {
-		{ 0.0f, 1.0f, 0.0f },
-		{ -1.0f,-1.0f, 0.0 },
-		{ +1.0f,-1.0f, 0.0 },
+	Vertex vertices_array[] = {
+		{ { 0.0f, 0.25f, 0.0f }, { 1.0f, 0.0f,0.0f,1.0f} },
+		{ { 0.25f,-0.25f, 0.0f }, { 0.0f, 1.0f,0.0f,1.0f} },
+		{ {-0.25f,-0.25f, 0.0f }, { 0.0f, 0.0f,1.0f,1.0f} },
 	};
+
 	// PipelineStateのための RootSignature の作成.
 	D3D12_ROOT_SIGNATURE_DESC desc_root_signature;
 	ZeroMemory(&desc_root_signature, sizeof(desc_root_signature));
@@ -205,7 +206,8 @@ BOOL DX12Renderer::ResourceSetup() {
 
 	// 今回のための頂点レイアウト.
 	D3D12_INPUT_ELEMENT_DESC desc_input_elements[] = {
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, Pos), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR",	  0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, Color), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 	// PipelineStateオブジェクトの作成.
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC desc_pipeline_state;
@@ -288,7 +290,7 @@ BOOL DX12Renderer::ResourceSetup() {
 		return FALSE;
 	}
 	_buffer_position.BufferLocation = _vertex_buffer->GetGPUVirtualAddress();
-	_buffer_position.StrideInBytes = sizeof(MyVertex);
+	_buffer_position.StrideInBytes = sizeof(Vertex);
 	_buffer_position.SizeInBytes = sizeof(vertices_array);
 
 	return TRUE;

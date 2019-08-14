@@ -16,8 +16,9 @@
 using namespace DirectX;
 using namespace Microsoft::WRL;
 
-struct MyVertex {
-	float x, y, z;
+struct Vertex {
+	XMFLOAT3 Pos;
+	XMFLOAT4 Color;
 };
 
 class DX12Renderer {
