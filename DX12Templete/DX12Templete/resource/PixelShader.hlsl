@@ -1,10 +1,4 @@
-struct VSOutput
+float4 main() : SV_TARGET
 {
-	float4 Position : SV_POSITION;
-	float4 Color : COLOR;
-};
-
-float4 main(VSOutput In) : SV_TARGET
-{
-	return In.Color;
-}
+	return float4(1.0, 1.0, 1.0, 1.0);
+}
