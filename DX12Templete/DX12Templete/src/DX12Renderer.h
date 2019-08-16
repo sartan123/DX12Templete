@@ -16,8 +16,9 @@
 using namespace DirectX;
 using namespace Microsoft::WRL;
 
-struct MyVertex {
-	float x, y, z;
+struct Vertex {
+	XMFLOAT3 Pos;
+	XMFLOAT4 Color;
 };
 
 class DX12Renderer {
@@ -27,7 +28,10 @@ public:
 public:
 	DX12Renderer(HWND hwnd, int Width, int Height);
 	~DX12Renderer();
-	HRESULT Render();
+	void Initialize();
+	void Update();
+	void Render();
+	void Destroy();
 
 private:
 	HWND    mHwnd;
@@ -42,13 +46,14 @@ private:
 	ComPtr<ID3D12GraphicsCommandList> _command_list;
 	ComPtr<IDXGISwapChain3> _swap_chain;
 	ComPtr<ID3D12Fence>  _queue_fence;
-	ComPtr<IDXGIFactory3> _factory;
 	ComPtr<ID3D12DescriptorHeap> _descriptor_heap;
-	ComPtr<ID3D12Resource> _render_target[2];
-	D3D12_CPU_DESCRIPTOR_HANDLE _rtv_handle[2];
+	ComPtr<ID3D12Resource> _render_target[RTV_NUM];
+	D3D12_CPU_DESCRIPTOR_HANDLE _rtv_handle[RTV_NUM];
 
 	void SetResourceBarrier(ID3D12GraphicsCommandList* commandList, ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
 	void WaitForCommandQueue(ID3D12CommandQueue* pCommandQueue);
+
+
 private:
 	struct ShaderObject {
 		void* binaryPtr;
@@ -61,7 +66,10 @@ private:
 	ComPtr<ID3D12Resource>      _vertex_buffer;
 	D3D12_VERTEX_BUFFER_VIEW    _buffer_position;
 
-	BOOL    ResourceSetup();
+	D3D12_VIEWPORT _viewport;
+
+	void LoadPipeline();
+	BOOL    LoadAssets();
 
 	BOOL	LoadVertexShader();
 	BOOL	LoadPixelShader();
