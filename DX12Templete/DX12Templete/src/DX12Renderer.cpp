@@ -6,7 +6,8 @@
 DX12Renderer::DX12Renderer(HWND hwnd, int Width, int Height) :
 	mHwnd(hwnd),
 	mWidth(Width),
-	mHeight(Height)
+	mHeight(Height),
+	mRadian(0.0f)
 {
 	Initialize();
 }
@@ -34,8 +35,9 @@ void DX12Renderer::Update()
 
 void DX12Renderer::Render() {
 
+	mRadian += 1.0f;
 	ShaderParameters shaderParams;
-	XMStoreFloat4x4(&shaderParams.mtxWorld, XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMConvertToRadians(0.0f)));
+	XMStoreFloat4x4(&shaderParams.mtxWorld, XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMConvertToRadians(mRadian)));
 	XMMATRIX mtxView = XMMatrixLookAtLH(
 		XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f), // Eye Position
 		XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f),  // Eye Direction
@@ -61,7 +63,7 @@ void DX12Renderer::Render() {
 	}
 
 
-	float clearColor[4] = { 0.0f,0.0f,0.0f,0.0f };
+	float clearColor[4] = { 0.2f, 0.5f, 0.7f, 0.0f };
 
 	_frame_index = _swap_chain->GetCurrentBackBufferIndex();
 
@@ -369,6 +371,19 @@ HRESULT DX12Renderer::CreatePipelineObject()
 		{ "COLOR",	  0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Vertex, Color), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 
+	D3D12_RASTERIZER_DESC rasterDesc = {};
+	rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+	rasterDesc.CullMode = D3D12_CULL_MODE_NONE;
+	rasterDesc.FrontCounterClockwise = false;
+	rasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+	rasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+	rasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+	rasterDesc.DepthClipEnable = true;
+	rasterDesc.MultisampleEnable = false;
+	rasterDesc.AntialiasedLineEnable = false;
+	rasterDesc.ForcedSampleCount = 0;
+	rasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC desc_pipeline_state;
 	ZeroMemory(&desc_pipeline_state, sizeof(desc_pipeline_state));
 	desc_pipeline_state.VS.pShaderBytecode = _g_vertex_shader.binaryPtr;
@@ -382,7 +397,7 @@ HRESULT DX12Renderer::CreatePipelineObject()
 	desc_pipeline_state.NumRenderTargets = 1;
 	desc_pipeline_state.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 	desc_pipeline_state.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	desc_pipeline_state.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	desc_pipeline_state.RasterizerState = rasterDesc;
 	desc_pipeline_state.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	desc_pipeline_state.DepthStencilState.DepthEnable = FALSE;
 	hr = device->CreateGraphicsPipelineState(&desc_pipeline_state, IID_PPV_ARGS(_pipeline_state.GetAddressOf()));

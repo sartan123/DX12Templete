@@ -56,6 +56,7 @@ private:
 	int     mHeight;
 
 	UINT _frame_index;
+	float mRadian;
 
 	HANDLE  _fence_event;
 	std::vector<ComPtr<ID3D12Fence1>> _frame_fences;
