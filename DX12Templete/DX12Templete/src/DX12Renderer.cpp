@@ -34,6 +34,32 @@ void DX12Renderer::Update()
 
 void DX12Renderer::Render() {
 
+	ShaderParameters shaderParams;
+	XMStoreFloat4x4(&shaderParams.mtxWorld, XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMConvertToRadians(0.0f)));
+	XMMATRIX mtxView = XMMatrixLookAtLH(
+		XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f), // Eye Position
+		XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f),  // Eye Direction
+		XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)   // Eye Up
+	);
+	XMMATRIX mtxProj = XMMatrixPerspectiveFovLH(
+		XMConvertToRadians(45.0f), 
+		_viewport.Width / _viewport.Height, 
+		0.1f, 
+		100.0f
+	);
+
+	XMStoreFloat4x4(&shaderParams.mtxView, XMMatrixTranspose(mtxView));
+	XMStoreFloat4x4(&shaderParams.mtxProj, XMMatrixTranspose(mtxProj));
+
+	auto& constantBuffer = m_constantBuffers[_frame_index];
+	{
+		void* p;
+		CD3DX12_RANGE range(0, 0);
+		constantBuffer->Map(0, &range, &p);
+		memcpy(p, &shaderParams, sizeof(shaderParams));
+		constantBuffer->Unmap(0, nullptr);
+	}
+
 
 	float clearColor[4] = { 0.0f,0.0f,0.0f,0.0f };
 
@@ -56,12 +82,18 @@ void DX12Renderer::Render() {
 	_command_list->RSSetScissorRects(1, &rect);
 	_command_list->OMSetRenderTargets(1, &_rtv_handle[_frame_index], TRUE, nullptr);
 
+	ID3D12DescriptorHeap* heaps[] = {
+	  m_heapSrvCbv.Get()
+	};
+	_command_list->SetDescriptorHeaps(_countof(heaps), heaps);
+
 	_command_list->SetGraphicsRootSignature(_root_signature.Get());
 	//  シェーダー設定
 	_command_list->SetPipelineState(_pipeline_state.Get());
 	_command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	_command_list->IASetVertexBuffers(0, 1, &_vertex_buffer_view);
 	_command_list->IASetIndexBuffer(&_index_buffer_view);
+	_command_list->SetGraphicsRootDescriptorTable(0, m_cbViews[_frame_index]);
 	_command_list->DrawIndexedInstanced(_index_count, 1, 0, 0, 0);
 
 	SetResourceBarrier(
@@ -198,6 +230,8 @@ BOOL DX12Renderer::LoadAssets() {
 
 	CreateCommandList();
 
+	PrepareDescriptorHeapForCubeApp();
+
 	//  頂点情報
 	const float k = 0.25;
 	Vertex vertices_array[] = {
@@ -222,6 +256,22 @@ BOOL DX12Renderer::LoadAssets() {
 	_index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
 
 	_index_count = _countof(indices);
+
+	m_constantBuffers.resize(FrameBufferCount);
+	m_cbViews.resize(FrameBufferCount);
+	for (UINT i = 0; i < FrameBufferCount; ++i)
+	{
+		UINT bufferSize = sizeof(ShaderParameters) + 255 & ~255;
+		m_constantBuffers[i] = CreateBuffer(bufferSize, nullptr);
+
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbDesc{};
+		cbDesc.BufferLocation = m_constantBuffers[i]->GetGPUVirtualAddress();
+		cbDesc.SizeInBytes = bufferSize;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE handleCBV(m_heapSrvCbv->GetCPUDescriptorHandleForHeapStart(), ConstantBufferDescriptorBase + i, m_srvcbvDescriptorSize);
+		device->CreateConstantBufferView(&cbDesc, handleCBV);
+
+		m_cbViews[i] = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_heapSrvCbv->GetGPUDescriptorHandleForHeapStart(), ConstantBufferDescriptorBase + i, m_srvcbvDescriptorSize);
+	}
 
 	CreateFence();
 
@@ -287,8 +337,20 @@ HRESULT DX12Renderer::CreateRootSignature()
 {
 	HRESULT hr;
 
-	D3D12_ROOT_SIGNATURE_DESC desc_root_signature;
-	ZeroMemory(&desc_root_signature, sizeof(desc_root_signature));
+	CD3DX12_DESCRIPTOR_RANGE cbv;
+	cbv.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0); // b0 レジスタ
+	
+	CD3DX12_ROOT_PARAMETER rootParams;
+	rootParams.InitAsDescriptorTable(1, &cbv, D3D12_SHADER_VISIBILITY_VERTEX);
+
+	CD3DX12_ROOT_SIGNATURE_DESC  desc_root_signature{};
+	desc_root_signature.Init(
+		1,
+		&rootParams,
+		0,
+		nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+	);
 
 	desc_root_signature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	ComPtr<ID3DBlob> root_sig_blob, error_blob;
@@ -383,6 +445,25 @@ HRESULT DX12Renderer::PrepareRenderTargetView()
 		_rtv_handle[i].ptr += i * strideHandleBytes;
 		device->CreateRenderTargetView(_render_target[i].Get(), nullptr, _rtv_handle[i]);
 	}
+	return hr;
+}
+
+HRESULT DX12Renderer::PrepareDescriptorHeapForCubeApp()
+{
+	HRESULT hr;
+	UINT count = FrameBufferCount + 1;
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{
+	  D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+	  count,
+	  D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+	  0
+	};
+	hr = device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_heapSrvCbv));
+	if (FAILED(hr)) {
+		return FALSE;
+	}
+	m_srvcbvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
 	return hr;
 }
 

@@ -10,10 +10,18 @@ struct VSOutput
 	float4 Color: COLOR;
 };
 
+cbuffer ShaderParameter : register(b0)
+{
+	float4x4 world;
+	float4x4 view;
+	float4x4 proj;
+}
+
 VSOutput main(VSInput In)
 {
 	VSOutput result = (VSOutput)0;
-	result.Position = In.Position;
+	float4x4 mtxWVP = mul(world, mul(view, proj));
+	result.Position = mul(In.Position, mtxWVP);
 	result.Color = In.Color;
 	return result;
 }

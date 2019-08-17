@@ -22,6 +22,21 @@ struct Vertex {
 	XMFLOAT4 Color;
 };
 
+struct ShaderParameters
+{
+	XMFLOAT4X4 mtxWorld;
+	XMFLOAT4X4 mtxView;
+	XMFLOAT4X4 mtxProj;
+};
+
+enum
+{
+	TextureSrvDescriptorBase = 0,
+	ConstantBufferDescriptorBase = 1,
+	// サンプラーは別ヒープなので先頭を使用
+	SamplerDescriptorBase = 0,
+};
+
 class DX12Renderer {
 public:
 	static constexpr int FrameBufferCount = 2;
@@ -67,6 +82,7 @@ private:
 	HRESULT CreateCommandAllocators();
 	HRESULT PrepareDescriptorHeaps();
 	HRESULT PrepareRenderTargetView();
+	HRESULT PrepareDescriptorHeapForCubeApp();
 	HRESULT CreateFence();
 
 	ComPtr<ID3D12Resource1> CreateBuffer(UINT bufferSize, const void* initialData);
@@ -86,6 +102,11 @@ private:
 	ComPtr<ID3D12Resource1> _index_buffer;
 	D3D12_INDEX_BUFFER_VIEW   _index_buffer_view;
 	UINT  _index_count;
+
+	ComPtr<ID3D12DescriptorHeap> m_heapSrvCbv;
+	UINT  m_srvcbvDescriptorSize;
+	std::vector<ComPtr<ID3D12Resource1>> m_constantBuffers;
+	std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> m_cbViews;
 
 	D3D12_VIEWPORT _viewport;
 
