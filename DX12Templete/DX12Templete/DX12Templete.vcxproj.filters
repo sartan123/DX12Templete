@@ -28,6 +28,9 @@
     <ClInclude Include="src\utility.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="src\d3dx12.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="resource\PixelShader.hlsl">
