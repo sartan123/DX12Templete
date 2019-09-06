@@ -5,7 +5,6 @@ BasicRenderer::BasicRenderer(HWND hwnd, int Width, int Height)
 	mWidth(Width),
 	mHeight(Height)
 {
-	Initialize();
 }
 
 BasicRenderer::~BasicRenderer()
@@ -48,9 +47,27 @@ void BasicRenderer::CreateDevice()
 {
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mFactory)));
 
-	ThrowIfFailed(mFactory->EnumAdapters(0, &mAdapter));
+	ComPtr<IDXGIAdapter1> pAdapter;
+	for (uint32_t i = 0; DXGI_ERROR_NOT_FOUND != mFactory->EnumAdapters1(i, &pAdapter); i++)
+	{
+		DXGI_ADAPTER_DESC1 desc;
+		pAdapter->GetDesc1(&desc);
 
-	ThrowIfFailed(D3D12CreateDevice(mAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&mDevice)));
+		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue;
+#if defined(_DEBUG)
+		ComPtr<ID3D12Debug> debugController;
+		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+		{
+			debugController->EnableDebugLayer();
+		}
+#endif
+		mDevice = nullptr;
+		ThrowIfFailed(D3D12CreateDevice(pAdapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&mDevice)));
+
+		D3D12_FEATURE_DATA_D3D12_OPTIONS5 features5;
+		ThrowIfFailed(mDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &features5, sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS5)));
+	}
+
 }
 
 void BasicRenderer::CreateCommandQueue()

@@ -103,13 +103,16 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <SDLCheck>true</SDLCheck>
+      <SDLCheck>
+      </SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
+      <ConformanceMode>false</ConformanceMode>
+      <PrecompiledHeader />
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>D3D12.lib;DXGI.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -155,14 +158,12 @@
   <ItemGroup>
     <ClCompile Include="src\BasicRenderer.cpp" />
     <ClCompile Include="src\DX12Renderer.cpp" />
-    <ClCompile Include="src\DXRenderer.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\BasicRenderer.h" />
     <ClInclude Include="src\d3dx12.h" />
     <ClInclude Include="src\DX12Renderer.h" />
-    <ClInclude Include="src\DXRenderer.h" />
     <ClInclude Include="src\stddef.h" />
     <ClInclude Include="src\utility.h" />
   </ItemGroup>

@@ -17,9 +17,6 @@
     <ClCompile Include="src\BasicRenderer.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="src\DXRenderer.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="src\DX12Renderer.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -35,9 +32,6 @@
       <Filter>ソース ファイル</Filter>
     </ClInclude>
     <ClInclude Include="src\BasicRenderer.h">
-      <Filter>ソース ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="src\DXRenderer.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
     <ClInclude Include="src\DX12Renderer.h">

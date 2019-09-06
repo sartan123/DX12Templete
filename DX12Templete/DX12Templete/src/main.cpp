@@ -1,6 +1,5 @@
 #include <windows.h>
 #include <tchar.h>
-#include "DXRenderer.h"
 #include "DX12Renderer.h"
 
 #define WINDOW_WIDTH  720
@@ -30,6 +29,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPTSTR lpCmdLine, in
 
 	//DXRenderer* renderer = new DXRenderer(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
 	DX12Renderer* renderer = new DX12Renderer(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
+	renderer->Initialize();
 
 	ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)

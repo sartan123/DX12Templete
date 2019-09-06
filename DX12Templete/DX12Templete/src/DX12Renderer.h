@@ -7,6 +7,7 @@
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
 #include <wrl/client.h>
+#include <comdef.h>
 #include "stddef.h"
 #include "d3dx12.h"
 
@@ -16,6 +17,22 @@
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
+
+#define MAKE_SMART_COM_PTR(_a) _COM_SMARTPTR_TYPEDEF(_a, __uuidof(_a))
+MAKE_SMART_COM_PTR(ID3D12Device5);
+MAKE_SMART_COM_PTR(ID3D12GraphicsCommandList4);
+MAKE_SMART_COM_PTR(ID3D12CommandQueue);
+MAKE_SMART_COM_PTR(IDXGISwapChain3);
+MAKE_SMART_COM_PTR(IDXGIFactory4);
+MAKE_SMART_COM_PTR(IDXGIAdapter1);
+MAKE_SMART_COM_PTR(ID3D12Fence);
+MAKE_SMART_COM_PTR(ID3D12CommandAllocator);
+MAKE_SMART_COM_PTR(ID3D12Resource);
+MAKE_SMART_COM_PTR(ID3D12DescriptorHeap);
+MAKE_SMART_COM_PTR(ID3D12Debug);
+MAKE_SMART_COM_PTR(ID3D12StateObject);
+MAKE_SMART_COM_PTR(ID3D12RootSignature);
+MAKE_SMART_COM_PTR(ID3DBlob);
 
 struct Vertex {
 	XMFLOAT3 Pos;
@@ -63,7 +80,7 @@ private:
 	std::vector<UINT64> _frame_fence_values;
 
 	std::vector<ComPtr<ID3D12CommandAllocator>> _command_allocators;
-	ComPtr<ID3D12Device> device;
+	ComPtr<ID3D12Device5> device;
 	ComPtr<ID3D12CommandQueue> _command_queue;
 	ComPtr<ID3D12GraphicsCommandList> _command_list;
 	ComPtr<IDXGISwapChain3> _swap_chain;

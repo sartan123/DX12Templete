@@ -9,7 +9,6 @@ DX12Renderer::DX12Renderer(HWND hwnd, int Width, int Height) :
 	mHeight(Height),
 	mRadian(0.0f)
 {
-	Initialize();
 }
 
 DX12Renderer::~DX12Renderer() {
@@ -128,19 +127,19 @@ void DX12Renderer::LoadPipeline()
 	CreateDebugInterface();
 #endif
 
-	ComPtr<IDXGIFactory4> factory;
+	IDXGIFactory4Ptr factory;
 	hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
 	if (FAILED(hr)) {
 		return;
 	}
 
-	ComPtr<IDXGIAdapter> adapter;
-	hr = factory->EnumAdapters(0, &adapter);
+	IDXGIAdapter1Ptr adapter;
+	hr = factory->EnumAdapters1(0, &adapter);
 	if (FAILED(hr)) {
 		return;
 	}
 
-	hr = D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device));
+	hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device));
 	if (FAILED(hr)) {
 		return;
 	}
