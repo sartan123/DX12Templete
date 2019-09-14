@@ -1,38 +1,9 @@
 #pragma once
 
-#include <Windows.h>
-#include <d3d12.h>
-#include <d3d12shader.h>
-#include <dxgi1_4.h>
-#include <d3dcompiler.h>
-#include <DirectXMath.h>
-#include <wrl/client.h>
-#include <comdef.h>
-#include "stddef.h"
-#include "d3dx12.h"
+#include "BasicRenderer.h"
 
-#pragma comment(lib, "d3d12.lib")
-#pragma comment(lib, "dxgi.lib")
-#pragma comment(lib, "dxguid.lib")
-
-using namespace DirectX;
-using namespace Microsoft::WRL;
-
-#define MAKE_SMART_COM_PTR(_a) _COM_SMARTPTR_TYPEDEF(_a, __uuidof(_a))
-MAKE_SMART_COM_PTR(ID3D12Device5);
-MAKE_SMART_COM_PTR(ID3D12GraphicsCommandList4);
-MAKE_SMART_COM_PTR(ID3D12CommandQueue);
-MAKE_SMART_COM_PTR(IDXGISwapChain3);
-MAKE_SMART_COM_PTR(IDXGIFactory4);
-MAKE_SMART_COM_PTR(IDXGIAdapter1);
-MAKE_SMART_COM_PTR(ID3D12Fence);
-MAKE_SMART_COM_PTR(ID3D12CommandAllocator);
-MAKE_SMART_COM_PTR(ID3D12Resource);
-MAKE_SMART_COM_PTR(ID3D12DescriptorHeap);
-MAKE_SMART_COM_PTR(ID3D12Debug);
-MAKE_SMART_COM_PTR(ID3D12StateObject);
-MAKE_SMART_COM_PTR(ID3D12RootSignature);
-MAKE_SMART_COM_PTR(ID3DBlob);
+#define d3d_call(a) {HRESULT hr_ = a; if(FAILED(hr_)) { d3dTraceHR( #a, hr_); }}
+void d3dTraceHR(const std::string& msg, HRESULT hr);
 
 struct Vertex {
 	XMFLOAT3 Pos;
@@ -54,40 +25,40 @@ enum
 	SamplerDescriptorBase = 0,
 };
 
-class DX12Renderer {
+class DX12Renderer: public BasicRenderer {
 public:
 	static constexpr int FrameBufferCount = 2;
 	static constexpr UINT GpuWaitTimeout = (10 * 1000);
 
 public:
-	DX12Renderer(HWND hwnd, int Width, int Height);
+	DX12Renderer();
 	~DX12Renderer();
-	void Initialize();
-	void Update();
-	void Render();
-	void Destroy();
+	void Initialize(HWND hwnd, int Width, int Height) override;
+	void Update() override;
+	void Render() override;
+	void Destroy() override;
 
 private:
 	HWND    mHwnd;
 	int     mWidth;
 	int     mHeight;
 
-	UINT _frame_index;
+	UINT mFenceIndex;
 	float mRadian;
 
-	HANDLE  _fence_event;
-	std::vector<ComPtr<ID3D12Fence1>> _frame_fences;
-	std::vector<UINT64> _frame_fence_values;
+	HANDLE  mFenceEvent;
+	std::vector<ID3D12FencePtr> mFrameFences;
+	std::vector<UINT64> mFrameFencesVelues;
 
-	std::vector<ComPtr<ID3D12CommandAllocator>> _command_allocators;
-	ComPtr<ID3D12Device5> device;
-	ComPtr<ID3D12CommandQueue> _command_queue;
-	ComPtr<ID3D12GraphicsCommandList> _command_list;
-	ComPtr<IDXGISwapChain3> _swap_chain;
+	std::vector<ID3D12CommandAllocatorPtr> mCommandAllocators;
+	ID3D12Device5Ptr mDevice;
+	ID3D12CommandQueuePtr mCommandQueue;
+	ID3D12GraphicsCommandList4Ptr mCommandList;
+	IDXGISwapChain3Ptr mSwapChain;
 
-	ComPtr<ID3D12DescriptorHeap> _descriptor_heap;
-	ComPtr<ID3D12Resource> _render_target[FrameBufferCount];
-	D3D12_CPU_DESCRIPTOR_HANDLE _rtv_handle[FrameBufferCount];
+	ComPtr<ID3D12DescriptorHeap> mDescriptorHeap;
+	ComPtr<ID3D12Resource> mRenderTarget[FrameBufferCount];
+	D3D12_CPU_DESCRIPTOR_HANDLE mRTVHandle[FrameBufferCount];
 
 	void SetResourceBarrier(ID3D12GraphicsCommandList* commandList, ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
 	void WaitForCommandQueue();
@@ -107,30 +78,38 @@ private:
 
 private:
 	struct ShaderObject {
+		ShaderObject()
+		: binaryPtr(nullptr)
+		, size(0)
+		{}
 		void* binaryPtr;
 		int   size;
 	};
-	ComPtr<ID3D12RootSignature> _root_signature;
-	ComPtr<ID3D12PipelineState> _pipeline_state;
-	ShaderObject _g_vertex_shader;
-	ShaderObject _g_pixel_shader;
-	ComPtr<ID3D12Resource>      _vertex_buffer;
-	D3D12_VERTEX_BUFFER_VIEW    _vertex_buffer_view;
+	ComPtr<ID3D12RootSignature> mRootSignature;
+	ComPtr<ID3D12PipelineState> mPipelineState;
+	ShaderObject mVertexShader;
+	ShaderObject mPixelShader;
+	ComPtr<ID3D12Resource>      mVertexBuffer;
+	D3D12_VERTEX_BUFFER_VIEW    mVertexBufferView;
 
-	ComPtr<ID3D12Resource1> _index_buffer;
-	D3D12_INDEX_BUFFER_VIEW   _index_buffer_view;
-	UINT  _index_count;
+	ComPtr<ID3D12Resource1> mIndexBuffer;
+	D3D12_INDEX_BUFFER_VIEW   mIndexBufferView;
+	UINT  mIndexCount;
 
-	ComPtr<ID3D12DescriptorHeap> m_heapSrvCbv;
-	UINT  m_srvcbvDescriptorSize;
-	std::vector<ComPtr<ID3D12Resource1>> m_constantBuffers;
-	std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> m_cbViews;
+	ComPtr<ID3D12DescriptorHeap> mHeapSrvCbv;
+	UINT  mSrvCbvDescriptorSize;
+	std::vector<ComPtr<ID3D12Resource1>> mConstantBuffers;
+	std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> mCbViews;
 
-	D3D12_VIEWPORT _viewport;
+	D3D12_VIEWPORT mViewPort;
 
 	void LoadPipeline();
 	BOOL    LoadAssets();
 
 	BOOL	LoadVertexShader();
 	BOOL	LoadPixelShader();
+
+	void d3dTraceHR(const std::string& msg, HRESULT hr);
+
+	void DX12Renderer::msgBox(const std::string& msg);
 };

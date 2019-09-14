@@ -11,7 +11,7 @@ HWND SetupWindow(HINSTANCE hInstance);
 WNDCLASSEX CreateWindowClass(HINSTANCE hInstance);
 
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPTSTR lpCmdLine, int nCmdShow)
+int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPreInst, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow)
 {
 	WNDCLASSEX wndClass;
 	HWND hwnd;
@@ -28,8 +28,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPTSTR lpCmdLine, in
 	UpdateWindow(hwnd);
 
 	//DXRenderer* renderer = new DXRenderer(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
-	DX12Renderer* renderer = new DX12Renderer(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
-	renderer->Initialize();
+	DX12Renderer renderer = DX12Renderer();
+	renderer.Initialize(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
 
 	ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)
@@ -41,7 +41,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPTSTR lpCmdLine, in
 		}
 		else
 		{
-			renderer->Render();
+			renderer.Update();
+			renderer.Render();
 		}
 	}
 	return (INT)msg.wParam;

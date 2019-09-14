@@ -4,10 +4,15 @@
 static std::wstring GetExecutionDirectory()
 {
 	wchar_t filePath[MAX_PATH];
-	GetModuleFileNameW(NULL, filePath, sizeof(filePath));
-	wchar_t* p = wcsrchr(filePath, L'\\');
-	std::wstring strPath(filePath, p);
-	return strPath;
+
+	if (sizeof(filePath) == MAX_PATH)
+	{
+		GetModuleFileNameW(NULL, filePath, sizeof(filePath));
+		wchar_t* p = wcsrchr(filePath, L'\\');
+		std::wstring strPath(filePath, p);
+		return strPath;
+	}
+	return L"";
 }
 
 static inline void GetAssetsPath(_Out_writes_(pathSize) WCHAR* path, UINT pathSize)

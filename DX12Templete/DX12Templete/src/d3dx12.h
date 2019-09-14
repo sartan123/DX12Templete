@@ -555,6 +555,10 @@ struct CD3DX12_CLEAR_VALUE : public D3D12_CLEAR_VALUE
         /* Use memcpy to preserve NAN values */
         memcpy( &DepthStencil.Depth, &depth, sizeof( depth ) );
         DepthStencil.Stencil = stencil;
+		Color[0] = (FLOAT)0;
+		Color[1] = (FLOAT)0;
+		Color[2] = (FLOAT)0;
+		Color[3] = (FLOAT)0;
     }
 };
 
@@ -839,6 +843,7 @@ struct CD3DX12_TEXTURE_COPY_LOCATION : public D3D12_TEXTURE_COPY_LOCATION
         pResource = pRes;
         Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
         SubresourceIndex = Sub;
+		PlacedFootprint = {};
     }
 }; 
 
