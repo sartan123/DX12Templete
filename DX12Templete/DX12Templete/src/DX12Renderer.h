@@ -10,6 +10,7 @@
 #include <comdef.h>
 #include "stddef.h"
 #include "d3dx12.h"
+#include "Square.h"
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -34,27 +35,28 @@ MAKE_SMART_COM_PTR(ID3D12StateObject);
 MAKE_SMART_COM_PTR(ID3D12RootSignature);
 MAKE_SMART_COM_PTR(ID3DBlob);
 
-struct Vertex {
-	XMFLOAT3 Pos;
-	XMFLOAT4 Color;
-};
-
-struct ShaderParameters
-{
-	XMFLOAT4X4 mtxWorld;
-	XMFLOAT4X4 mtxView;
-	XMFLOAT4X4 mtxProj;
-};
-
-enum
-{
-	TextureSrvDescriptorBase = 0,
-	ConstantBufferDescriptorBase = 1,
-	// サンプラーは別ヒープなので先頭を使用
-	SamplerDescriptorBase = 0,
-};
-
 class DX12Renderer {
+
+	struct Vertex {
+		XMFLOAT3 Pos;
+		XMFLOAT4 Color;
+	};
+
+	struct ShaderParameters
+	{
+		XMFLOAT4X4 mtxWorld;
+		XMFLOAT4X4 mtxView;
+		XMFLOAT4X4 mtxProj;
+	};
+
+	enum
+	{
+		TextureSrvDescriptorBase = 0,
+		ConstantBufferDescriptorBase = 1,
+		// サンプラーは別ヒープなので先頭を使用
+		SamplerDescriptorBase = 0,
+	};
+
 public:
 	static constexpr int FrameBufferCount = 2;
 	static constexpr UINT GpuWaitTimeout = (10 * 1000);
@@ -75,11 +77,14 @@ private:
 	UINT _frame_index;
 	float mRadian;
 
-	HANDLE  _fence_event;
-	std::vector<ComPtr<ID3D12Fence1>> _frame_fences;
-	std::vector<UINT64> _frame_fence_values;
+	Square* object;
 
-	std::vector<ComPtr<ID3D12CommandAllocator>> _command_allocators;
+	HANDLE  _fence_event;
+	ComPtr<ID3D12Fence1> _frame_fences;
+	UINT64 _frame_fence_values;
+
+	ComPtr<ID3D12CommandAllocator> _command_allocators;
+	IDXGIFactory4Ptr factory;
 	ComPtr<ID3D12Device5> device;
 	ComPtr<ID3D12CommandQueue> _command_queue;
 	ComPtr<ID3D12GraphicsCommandList> _command_list;
@@ -89,19 +94,23 @@ private:
 	ComPtr<ID3D12Resource> _render_target[FrameBufferCount];
 	D3D12_CPU_DESCRIPTOR_HANDLE _rtv_handle[FrameBufferCount];
 
-	void SetResourceBarrier(ID3D12GraphicsCommandList* commandList, ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
+	void SetResourceBarrier(D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
 	void WaitForCommandQueue();
 	void CreateDebugInterface();
 	void SetViewPort();
 
+	HRESULT CreateFactory();
+	HRESULT CreateDevice();
+	HRESULT CreateCommandQueue();
+	HRESULT CreateSwapChain();
 	HRESULT CreateRootSignature();
 	HRESULT CreatePipelineObject();
 	HRESULT CreateCommandList();
-	HRESULT CreateCommandAllocators();
-	HRESULT PrepareDescriptorHeaps();
-	HRESULT PrepareRenderTargetView();
-	HRESULT PrepareDescriptorHeapForCubeApp();
-	HRESULT CreateFence();
+	HRESULT CreateRenderTargetView();
+	HRESULT CreateDescriptorHeap();
+
+	void PopulateCommandList();
+	void UpdateObject();
 
 	ComPtr<ID3D12Resource1> CreateBuffer(UINT bufferSize, const void* initialData);
 
@@ -123,8 +132,8 @@ private:
 
 	ComPtr<ID3D12DescriptorHeap> m_heapSrvCbv;
 	UINT  m_srvcbvDescriptorSize;
-	std::vector<ComPtr<ID3D12Resource1>> m_constantBuffers;
-	std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> m_cbViews;
+	ComPtr<ID3D12Resource1> m_constantBuffers;
+	D3D12_GPU_DESCRIPTOR_HANDLE m_cbViews;
 
 	D3D12_VIEWPORT _viewport;
 

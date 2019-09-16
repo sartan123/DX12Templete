@@ -32,8 +32,51 @@ void DX12Renderer::Update()
 
 }
 
-void DX12Renderer::Render() {
+void DX12Renderer::PopulateCommandList()
+{
+	float clearColor[4] = { 0.2f, 0.5f, 0.7f, 0.0f };
 
+	SetResourceBarrier(D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+	// レンダーターゲットのクリア処理.
+	_command_list->ClearRenderTargetView(_rtv_handle[_frame_index], clearColor, 0, nullptr);
+
+	_command_list->SetGraphicsRootSignature(_root_signature.Get());
+	_command_list->SetPipelineState(_pipeline_state.Get());
+
+	D3D12_RECT rect = { 0, 0, mWidth, mHeight };
+	_command_list->RSSetViewports(1, &_viewport);
+	_command_list->RSSetScissorRects(1, &rect);
+
+	_command_list->OMSetRenderTargets(1, &_rtv_handle[_frame_index], TRUE, nullptr);
+
+	UpdateObject();
+
+	SetResourceBarrier(D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+
+	_command_list->Close();
+}
+
+void DX12Renderer::Render()
+{
+	PopulateCommandList();
+
+	// 積んだコマンドの実行.
+	ID3D12CommandList* pCommandList = _command_list.Get();
+	_command_queue->ExecuteCommandLists(1, &pCommandList);
+
+	WaitForCommandQueue();
+
+	_command_allocators->Reset();
+	_command_list->Reset(_command_allocators.Get(), _pipeline_state.Get());
+
+	_swap_chain->Present(1, 0);
+
+	_frame_index = _swap_chain->GetCurrentBackBufferIndex();
+}
+
+void DX12Renderer::UpdateObject()
+{
 	mRadian += 1.0f;
 	ShaderParameters shaderParams;
 	XMStoreFloat4x4(&shaderParams.mtxWorld, XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMConvertToRadians(mRadian)));
@@ -43,16 +86,16 @@ void DX12Renderer::Render() {
 		XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)   // Eye Up
 	);
 	XMMATRIX mtxProj = XMMatrixPerspectiveFovLH(
-		XMConvertToRadians(45.0f), 
-		_viewport.Width / _viewport.Height, 
-		0.1f, 
+		XMConvertToRadians(45.0f),
+		_viewport.Width / _viewport.Height,
+		0.1f,
 		100.0f
 	);
 
 	XMStoreFloat4x4(&shaderParams.mtxView, XMMatrixTranspose(mtxView));
 	XMStoreFloat4x4(&shaderParams.mtxProj, XMMatrixTranspose(mtxProj));
 
-	auto& constantBuffer = m_constantBuffers[_frame_index];
+	auto& constantBuffer = m_constantBuffers;
 	{
 		void* p;
 		CD3DX12_RANGE range(0, 0);
@@ -61,56 +104,16 @@ void DX12Renderer::Render() {
 		constantBuffer->Unmap(0, nullptr);
 	}
 
-
-	float clearColor[4] = { 0.2f, 0.5f, 0.7f, 0.0f };
-
-	_frame_index = _swap_chain->GetCurrentBackBufferIndex();
-
-	_command_allocators[_frame_index]->Reset();
-	_command_list->Reset(_command_allocators[_frame_index].Get(), _pipeline_state.Get());
-
-	SetResourceBarrier(
-		_command_list.Get(),
-		_render_target[_frame_index].Get(),
-		D3D12_RESOURCE_STATE_PRESENT,
-		D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-	// レンダーターゲットのクリア処理.
-	_command_list->RSSetViewports(1, &_viewport);
-	_command_list->ClearRenderTargetView(_rtv_handle[_frame_index], clearColor, 0, nullptr);
-
-	D3D12_RECT rect = { 0, 0, mWidth, mHeight };
-	_command_list->RSSetScissorRects(1, &rect);
-	_command_list->OMSetRenderTargets(1, &_rtv_handle[_frame_index], TRUE, nullptr);
-
 	ID3D12DescriptorHeap* heaps[] = {
 	  m_heapSrvCbv.Get()
 	};
 	_command_list->SetDescriptorHeaps(_countof(heaps), heaps);
+	_command_list->SetGraphicsRootDescriptorTable(0, m_cbViews);
 
-	_command_list->SetGraphicsRootSignature(_root_signature.Get());
-	//  シェーダー設定
-	_command_list->SetPipelineState(_pipeline_state.Get());
 	_command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	_command_list->IASetVertexBuffers(0, 1, &_vertex_buffer_view);
 	_command_list->IASetIndexBuffer(&_index_buffer_view);
-	_command_list->SetGraphicsRootDescriptorTable(0, m_cbViews[_frame_index]);
 	_command_list->DrawIndexedInstanced(_index_count, 1, 0, 0, 0);
-
-	SetResourceBarrier(
-		_command_list.Get(),
-		_render_target[_frame_index].Get(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET,
-		D3D12_RESOURCE_STATE_PRESENT);
-
-	_command_list->Close();
-
-	// 積んだコマンドの実行.
-	ID3D12CommandList* pCommandList = _command_list.Get();
-	_command_queue->ExecuteCommandLists(1, &pCommandList);
-	_swap_chain->Present(1, 0);
-
-	WaitForCommandQueue();
 }
 
 void DX12Renderer::Destroy()
@@ -121,60 +124,25 @@ void DX12Renderer::Destroy()
 
 void DX12Renderer::LoadPipeline()
 {
-	HRESULT hr;
-
 #if defined(_DEBUG)
 	CreateDebugInterface();
 #endif
 
-	IDXGIFactory4Ptr factory;
-	hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
-	if (FAILED(hr)) {
-		return;
-	}
+	CreateFactory();
 
-	IDXGIAdapter1Ptr adapter;
-	hr = factory->EnumAdapters1(0, &adapter);
-	if (FAILED(hr)) {
-		return;
-	}
+	CreateDevice();
 
-	hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device));
-	if (FAILED(hr)) {
-		return;
-	}
+	CreateCommandQueue();
 
-	D3D12_COMMAND_QUEUE_DESC desc_command_queue;
-	ZeroMemory(&desc_command_queue, sizeof(desc_command_queue));
-	desc_command_queue.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-	desc_command_queue.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-	hr = device->CreateCommandQueue(&desc_command_queue, IID_PPV_ARGS(&_command_queue));
-	if (FAILED(hr)) {
-		return;
-	}
+	CreateSwapChain();
 
-	ComPtr<IDXGISwapChain> swapChain;
-	DXGI_SWAP_CHAIN_DESC desc_swap_chain;
-	ZeroMemory(&desc_swap_chain, sizeof(desc_swap_chain));
-	desc_swap_chain.BufferCount = 2;
-	desc_swap_chain.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	desc_swap_chain.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	desc_swap_chain.OutputWindow = mHwnd;
-	desc_swap_chain.SampleDesc.Count = 1;
-	desc_swap_chain.Windowed = TRUE;
-	desc_swap_chain.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-	desc_swap_chain.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-	hr = factory->CreateSwapChain(_command_queue.Get(), &desc_swap_chain, &swapChain);
-	hr = swapChain.As(&_swap_chain);
-	if (FAILED(hr)) {
-		return;
-	}
+	CreateRenderTargetView();
 
-	CreateCommandAllocators();
+	CreateCommandList();
 
-	PrepareDescriptorHeaps();
+	CreateRootSignature();
 
-	PrepareRenderTargetView();
+	SetViewPort();
 
 }
 
@@ -193,45 +161,113 @@ void DX12Renderer::CreateDebugInterface()
 	}
 }
 
-void DX12Renderer::SetResourceBarrier(ID3D12GraphicsCommandList* commandList, ID3D12Resource* resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
+HRESULT DX12Renderer::CreateFactory() {
+	HRESULT hr;
+	UINT flag;
+
+#if defined(_DEBUG)
+	flag |= DXGI_CREATE_FACTORY_DEBUG;
+#endif
+
+	hr = CreateDXGIFactory2(flag, IID_PPV_ARGS(&factory));
+
+	return hr;
+}
+
+HRESULT DX12Renderer::CreateDevice()
+{
+	HRESULT hr;
+	IDXGIAdapter1Ptr adapter;
+	hr = factory->EnumAdapters1(0, &adapter);
+	if (SUCCEEDED(hr))
+	{
+		hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device));
+	}
+	return hr;
+}
+
+HRESULT DX12Renderer::CreateCommandQueue()
+{
+	HRESULT hr;
+	D3D12_COMMAND_QUEUE_DESC desc_command_queue;
+	ZeroMemory(&desc_command_queue, sizeof(desc_command_queue));
+	desc_command_queue.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+	desc_command_queue.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	hr = device->CreateCommandQueue(&desc_command_queue, IID_PPV_ARGS(&_command_queue));
+
+	_frame_index = 0;
+	_fence_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+	hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_frame_fences));
+	if (FAILED(hr))
+	{
+		throw std::runtime_error("Failed CreateFence");
+	}
+	return hr;
+}
+
+HRESULT DX12Renderer::CreateSwapChain()
+{
+	HRESULT hr;
+	ComPtr<IDXGISwapChain> swapChain;
+	DXGI_SWAP_CHAIN_DESC desc_swap_chain;
+	ZeroMemory(&desc_swap_chain, sizeof(desc_swap_chain));
+	desc_swap_chain.BufferCount = 2;
+	desc_swap_chain.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	desc_swap_chain.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	desc_swap_chain.OutputWindow = mHwnd;
+	desc_swap_chain.SampleDesc.Count = 1;
+	desc_swap_chain.Windowed = TRUE;
+	desc_swap_chain.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+	desc_swap_chain.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	hr = factory->CreateSwapChain(_command_queue.Get(), &desc_swap_chain, &swapChain);
+	hr = swapChain.As(&_swap_chain);
+
+	hr = _swap_chain->QueryInterface(_swap_chain.GetAddressOf());
+	if (FAILED(hr)) {
+		return hr;
+	}
+
+	_frame_index = _swap_chain->GetCurrentBackBufferIndex();
+	return hr;
+}
+
+void DX12Renderer::SetResourceBarrier(D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
 {
 	D3D12_RESOURCE_BARRIER descBarrier;
 	ZeroMemory(&descBarrier, sizeof(descBarrier));
 	descBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	descBarrier.Transition.pResource = resource;
+	descBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	descBarrier.Transition.pResource = _render_target[_frame_index].Get();
 	descBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	descBarrier.Transition.StateBefore = before;
 	descBarrier.Transition.StateAfter = after;
-	commandList->ResourceBarrier(1, &descBarrier);
+	_command_list->ResourceBarrier(1, &descBarrier);
 }
 
 void DX12Renderer::WaitForCommandQueue() 
 {
 	UINT nextIndex = (_frame_index + 1) % FrameBufferCount;
-	UINT64 currentValue = ++_frame_fence_values[_frame_index];
-	UINT64 finishExpected = _frame_fence_values[nextIndex];
-	UINT64 nextFenceValue = _frame_fences[nextIndex]->GetCompletedValue();
+	UINT64 currentValue = ++_frame_fence_values;
+	UINT64 finishExpected = _frame_fence_values;
+	UINT64 nextFenceValue = _frame_fences->GetCompletedValue();
 
-	_command_queue->Signal(_frame_fences[_frame_index].Get(), currentValue);
+	_command_queue->Signal(_frame_fences.Get(), currentValue);
 	if (nextFenceValue < finishExpected)
 	{
-		_frame_fences[nextIndex]->SetEventOnCompletion(finishExpected, _fence_event);
+		_frame_fences->SetEventOnCompletion(finishExpected, _fence_event);
 		WaitForSingleObject(_fence_event, GpuWaitTimeout);
 	}
 }
 
 BOOL DX12Renderer::LoadAssets() {
 
-	CreateRootSignature();
-
 	LoadVertexShader();
 	LoadPixelShader();
 
 	CreatePipelineObject();
 
-	CreateCommandList();
-
-	PrepareDescriptorHeapForCubeApp();
+	CreateDescriptorHeap();
 
 	//  頂点情報
 	const float k = 0.25;
@@ -258,25 +294,16 @@ BOOL DX12Renderer::LoadAssets() {
 
 	_index_count = _countof(indices);
 
-	m_constantBuffers.resize(FrameBufferCount);
-	m_cbViews.resize(FrameBufferCount);
-	for (UINT i = 0; i < FrameBufferCount; ++i)
-	{
-		UINT bufferSize = sizeof(ShaderParameters) + 255 & ~255;
-		m_constantBuffers[i] = CreateBuffer(bufferSize, nullptr);
+	UINT bufferSize = sizeof(ShaderParameters) + 255 & ~255;
+	m_constantBuffers = CreateBuffer(bufferSize, nullptr);
 
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbDesc{};
-		cbDesc.BufferLocation = m_constantBuffers[i]->GetGPUVirtualAddress();
-		cbDesc.SizeInBytes = bufferSize;
-		CD3DX12_CPU_DESCRIPTOR_HANDLE handleCBV(m_heapSrvCbv->GetCPUDescriptorHandleForHeapStart(), ConstantBufferDescriptorBase + i, m_srvcbvDescriptorSize);
-		device->CreateConstantBufferView(&cbDesc, handleCBV);
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbDesc{};
+	cbDesc.BufferLocation = m_constantBuffers->GetGPUVirtualAddress();
+	cbDesc.SizeInBytes = bufferSize;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE handleCBV(m_heapSrvCbv->GetCPUDescriptorHandleForHeapStart(), ConstantBufferDescriptorBase, m_srvcbvDescriptorSize);
+	device->CreateConstantBufferView(&cbDesc, handleCBV);
 
-		m_cbViews[i] = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_heapSrvCbv->GetGPUDescriptorHandleForHeapStart(), ConstantBufferDescriptorBase + i, m_srvcbvDescriptorSize);
-	}
-
-	CreateFence();
-
-	SetViewPort();
+	m_cbViews = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_heapSrvCbv->GetGPUDescriptorHandleForHeapStart(), ConstantBufferDescriptorBase, m_srvcbvDescriptorSize);
 
 	return TRUE;
 }
@@ -407,31 +434,18 @@ HRESULT DX12Renderer::CreatePipelineObject()
 HRESULT DX12Renderer::CreateCommandList()
 {
 	HRESULT hr;
-	hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, _command_allocators[0].Get(), _pipeline_state.Get(), IID_PPV_ARGS(&_command_list));
-	_command_list->Close();
-
-	return hr;
-}
-
-HRESULT DX12Renderer::CreateCommandAllocators()
-{
-	HRESULT hr;
-	_command_allocators.resize(FrameBufferCount);
-	for (UINT i = 0; i < FrameBufferCount; ++i)
+	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&_command_allocators));
+	if (FAILED(hr))
 	{
-		hr = device->CreateCommandAllocator(
-			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			IID_PPV_ARGS(&_command_allocators[i])
-		);
-		if (FAILED(hr))
-		{
-			throw std::runtime_error("Failed CreateCommandAllocator");
-		}
+		throw std::runtime_error("Failed CreateCommandAllocator");
 	}
+
+	hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, _command_allocators.Get(), nullptr, IID_PPV_ARGS(&_command_list));
+
 	return hr;
 }
 
-HRESULT DX12Renderer::PrepareDescriptorHeaps()
+HRESULT DX12Renderer::CreateRenderTargetView()
 {
 	HRESULT hr;
 	D3D12_DESCRIPTOR_HEAP_DESC desc_heap;
@@ -443,12 +457,7 @@ HRESULT DX12Renderer::PrepareDescriptorHeaps()
 	if (FAILED(hr)) {
 		return FALSE;
 	}
-	return hr;
-}
 
-HRESULT DX12Renderer::PrepareRenderTargetView()
-{
-	HRESULT hr;
 	UINT strideHandleBytes = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	for (UINT i = 0; i < FrameBufferCount; ++i) {
 		hr = _swap_chain->GetBuffer(i, IID_PPV_ARGS(_render_target[i].GetAddressOf()));
@@ -462,7 +471,7 @@ HRESULT DX12Renderer::PrepareRenderTargetView()
 	return hr;
 }
 
-HRESULT DX12Renderer::PrepareDescriptorHeapForCubeApp()
+HRESULT DX12Renderer::CreateDescriptorHeap()
 {
 	HRESULT hr;
 	UINT count = FrameBufferCount + 1;
@@ -478,25 +487,6 @@ HRESULT DX12Renderer::PrepareDescriptorHeapForCubeApp()
 	}
 	m_srvcbvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	return hr;
-}
-
-HRESULT DX12Renderer::CreateFence()
-{
-	HRESULT hr;
-	_frame_index = 0;
-	_frame_fences.resize(FrameBufferCount);
-	_frame_fence_values.resize(FrameBufferCount);
-	_fence_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-
-	for (UINT i = 0; i < FrameBufferCount; ++i)
-	{
-		hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_frame_fences[i]));
-		if (FAILED(hr))
-		{
-			throw std::runtime_error("Failed CreateFence");
-		}
-	}
 	return hr;
 }
 
