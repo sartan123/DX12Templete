@@ -42,42 +42,27 @@ class DX12Renderer {
 		XMFLOAT4 Color;
 	};
 
-	struct ShaderParameters
-	{
-		XMFLOAT4X4 mtxWorld;
-		XMFLOAT4X4 mtxView;
-		XMFLOAT4X4 mtxProj;
-	};
-
-	enum
-	{
-		TextureSrvDescriptorBase = 0,
-		ConstantBufferDescriptorBase = 1,
-		// サンプラーは別ヒープなので先頭を使用
-		SamplerDescriptorBase = 0,
-	};
 
 public:
 	static constexpr int FrameBufferCount = 2;
 	static constexpr UINT GpuWaitTimeout = (10 * 1000);
 
 public:
-	DX12Renderer(HWND hwnd, int Width, int Height);
+	DX12Renderer() {};
 	~DX12Renderer();
-	void Initialize();
+	void Initialize(HWND hwnd, int Width, int Height);
 	void Update();
 	void Render();
 	void Destroy();
 
+	static ComPtr<ID3D12Device5> GetDevice() { return device; }
+	static ComPtr<ID3D12GraphicsCommandList> GetCmdList() { return _command_list; }
 private:
 	HWND    mHwnd;
 	int     mWidth;
 	int     mHeight;
 
 	UINT _frame_index;
-	float mRadian;
-
-	Square* object;
 
 	HANDLE  _fence_event;
 	ComPtr<ID3D12Fence1> _frame_fences;
@@ -85,20 +70,23 @@ private:
 
 	ComPtr<ID3D12CommandAllocator> _command_allocators;
 	IDXGIFactory4Ptr factory;
-	ComPtr<ID3D12Device5> device;
+	static ComPtr<ID3D12Device5> device;
 	ComPtr<ID3D12CommandQueue> _command_queue;
-	ComPtr<ID3D12GraphicsCommandList> _command_list;
+	static ComPtr<ID3D12GraphicsCommandList> _command_list;
 	ComPtr<IDXGISwapChain3> _swap_chain;
 
 	ComPtr<ID3D12DescriptorHeap> _descriptor_heap;
 	ComPtr<ID3D12Resource> _render_target[FrameBufferCount];
 	D3D12_CPU_DESCRIPTOR_HANDLE _rtv_handle[FrameBufferCount];
 
-	void SetResourceBarrier(D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
-	void WaitForCommandQueue();
-	void CreateDebugInterface();
-	void SetViewPort();
+	ComPtr<ID3D12RootSignature> _root_signature;
+	ComPtr<ID3D12PipelineState> _pipeline_state;
 
+	D3D12_VIEWPORT _viewport;
+
+
+	void LoadPipeline();
+	void CreateDebugInterface();
 	HRESULT CreateFactory();
 	HRESULT CreateDevice();
 	HRESULT CreateCommandQueue();
@@ -107,38 +95,23 @@ private:
 	HRESULT CreatePipelineObject();
 	HRESULT CreateCommandList();
 	HRESULT CreateRenderTargetView();
-	HRESULT CreateDescriptorHeap();
-
+	void SetViewPort();
 	void PopulateCommandList();
-	void UpdateObject();
-
-	ComPtr<ID3D12Resource1> CreateBuffer(UINT bufferSize, const void* initialData);
+	void SetResourceBarrier(D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
+	void WaitForCommandQueue();
 
 private:
+	BOOL    LoadAssets();
+	
+	Square* object;
+
+	// Shader
 	struct ShaderObject {
 		void* binaryPtr;
 		int   size;
 	};
-	ComPtr<ID3D12RootSignature> _root_signature;
-	ComPtr<ID3D12PipelineState> _pipeline_state;
 	ShaderObject _g_vertex_shader;
 	ShaderObject _g_pixel_shader;
-	ComPtr<ID3D12Resource>      _vertex_buffer;
-	D3D12_VERTEX_BUFFER_VIEW    _vertex_buffer_view;
-
-	ComPtr<ID3D12Resource1> _index_buffer;
-	D3D12_INDEX_BUFFER_VIEW   _index_buffer_view;
-	UINT  _index_count;
-
-	ComPtr<ID3D12DescriptorHeap> m_heapSrvCbv;
-	UINT  m_srvcbvDescriptorSize;
-	ComPtr<ID3D12Resource1> m_constantBuffers;
-	D3D12_GPU_DESCRIPTOR_HANDLE m_cbViews;
-
-	D3D12_VIEWPORT _viewport;
-
-	void LoadPipeline();
-	BOOL    LoadAssets();
 
 	BOOL	LoadVertexShader();
 	BOOL	LoadPixelShader();

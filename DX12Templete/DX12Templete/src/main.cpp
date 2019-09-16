@@ -28,8 +28,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPTSTR lpCmdLine, in
 	UpdateWindow(hwnd);
 
 	//DXRenderer* renderer = new DXRenderer(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
-	DX12Renderer* renderer = new DX12Renderer(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
-	renderer->Initialize();
+	DX12Renderer* renderer = new DX12Renderer();
+	renderer->Initialize(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
 
 	ZeroMemory(&msg, sizeof(msg));
 	while (msg.message != WM_QUIT)

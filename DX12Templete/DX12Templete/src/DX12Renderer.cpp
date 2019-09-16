@@ -1,15 +1,9 @@
 #define _CRT_SECURE_NO_WARNINGS
-
 #include "DX12Renderer.h"
 #include "utility.h"
 
-DX12Renderer::DX12Renderer(HWND hwnd, int Width, int Height) :
-	mHwnd(hwnd),
-	mWidth(Width),
-	mHeight(Height),
-	mRadian(0.0f)
-{
-}
+ComPtr<ID3D12Device5> DX12Renderer::device = nullptr;
+ComPtr<ID3D12GraphicsCommandList> DX12Renderer::_command_list = nullptr;
 
 DX12Renderer::~DX12Renderer() {
 	if (_g_vertex_shader.binaryPtr) {
@@ -21,15 +15,49 @@ DX12Renderer::~DX12Renderer() {
 	Destroy();
 }
 
-void DX12Renderer::Initialize()
-{
-	LoadPipeline();
-	LoadAssets();
-}
-
 void DX12Renderer::Update()
 {
 
+}
+
+void DX12Renderer::WaitForCommandQueue()
+{
+	UINT nextIndex = (_frame_index + 1) % FrameBufferCount;
+	UINT64 currentValue = ++_frame_fence_values;
+	UINT64 finishExpected = _frame_fence_values;
+	UINT64 nextFenceValue = _frame_fences->GetCompletedValue();
+
+	_command_queue->Signal(_frame_fences.Get(), currentValue);
+	if (nextFenceValue < finishExpected)
+	{
+		_frame_fences->SetEventOnCompletion(finishExpected, _fence_event);
+		WaitForSingleObject(_fence_event, GpuWaitTimeout);
+	}
+}
+
+void DX12Renderer::Destroy()
+{
+	WaitForCommandQueue();
+	CloseHandle(_fence_event);
+}
+
+// Render
+void DX12Renderer::Render()
+{
+	PopulateCommandList();
+
+	// 積んだコマンドの実行.
+	ID3D12CommandList* pCommandList = _command_list.Get();
+	_command_queue->ExecuteCommandLists(1, &pCommandList);
+
+	WaitForCommandQueue();
+
+	_command_allocators->Reset();
+	_command_list->Reset(_command_allocators.Get(), _pipeline_state.Get());
+
+	_swap_chain->Present(1, 0);
+
+	_frame_index = _swap_chain->GetCurrentBackBufferIndex();
 }
 
 void DX12Renderer::PopulateCommandList()
@@ -50,78 +78,38 @@ void DX12Renderer::PopulateCommandList()
 
 	_command_list->OMSetRenderTargets(1, &_rtv_handle[_frame_index], TRUE, nullptr);
 
-	UpdateObject();
+	object->draw();
 
 	SetResourceBarrier(D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
 	_command_list->Close();
 }
 
-void DX12Renderer::Render()
+void DX12Renderer::SetResourceBarrier(D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
 {
-	PopulateCommandList();
-
-	// 積んだコマンドの実行.
-	ID3D12CommandList* pCommandList = _command_list.Get();
-	_command_queue->ExecuteCommandLists(1, &pCommandList);
-
-	WaitForCommandQueue();
-
-	_command_allocators->Reset();
-	_command_list->Reset(_command_allocators.Get(), _pipeline_state.Get());
-
-	_swap_chain->Present(1, 0);
-
-	_frame_index = _swap_chain->GetCurrentBackBufferIndex();
+	D3D12_RESOURCE_BARRIER descBarrier;
+	ZeroMemory(&descBarrier, sizeof(descBarrier));
+	descBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	descBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	descBarrier.Transition.pResource = _render_target[_frame_index].Get();
+	descBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	descBarrier.Transition.StateBefore = before;
+	descBarrier.Transition.StateAfter = after;
+	_command_list->ResourceBarrier(1, &descBarrier);
 }
 
-void DX12Renderer::UpdateObject()
+// Initialize
+void DX12Renderer::Initialize(HWND hwnd, int Width, int Height)
 {
-	mRadian += 1.0f;
-	ShaderParameters shaderParams;
-	XMStoreFloat4x4(&shaderParams.mtxWorld, XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMConvertToRadians(mRadian)));
-	XMMATRIX mtxView = XMMatrixLookAtLH(
-		XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f), // Eye Position
-		XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f),  // Eye Direction
-		XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)   // Eye Up
-	);
-	XMMATRIX mtxProj = XMMatrixPerspectiveFovLH(
-		XMConvertToRadians(45.0f),
-		_viewport.Width / _viewport.Height,
-		0.1f,
-		100.0f
-	);
+	mHwnd = hwnd;
+	mWidth = Width;
+	mHeight = Height;
 
-	XMStoreFloat4x4(&shaderParams.mtxView, XMMatrixTranspose(mtxView));
-	XMStoreFloat4x4(&shaderParams.mtxProj, XMMatrixTranspose(mtxProj));
-
-	auto& constantBuffer = m_constantBuffers;
-	{
-		void* p;
-		CD3DX12_RANGE range(0, 0);
-		constantBuffer->Map(0, &range, &p);
-		memcpy(p, &shaderParams, sizeof(shaderParams));
-		constantBuffer->Unmap(0, nullptr);
-	}
-
-	ID3D12DescriptorHeap* heaps[] = {
-	  m_heapSrvCbv.Get()
-	};
-	_command_list->SetDescriptorHeaps(_countof(heaps), heaps);
-	_command_list->SetGraphicsRootDescriptorTable(0, m_cbViews);
-
-	_command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	_command_list->IASetVertexBuffers(0, 1, &_vertex_buffer_view);
-	_command_list->IASetIndexBuffer(&_index_buffer_view);
-	_command_list->DrawIndexedInstanced(_index_count, 1, 0, 0, 0);
+	LoadPipeline();
+	LoadAssets();
 }
 
-void DX12Renderer::Destroy()
-{
-	WaitForCommandQueue();
-	CloseHandle(_fence_event);
-}
-
+// Pipeline State
 void DX12Renderer::LoadPipeline()
 {
 #if defined(_DEBUG)
@@ -232,34 +220,84 @@ HRESULT DX12Renderer::CreateSwapChain()
 	return hr;
 }
 
-void DX12Renderer::SetResourceBarrier(D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
+HRESULT DX12Renderer::CreateCommandList()
 {
-	D3D12_RESOURCE_BARRIER descBarrier;
-	ZeroMemory(&descBarrier, sizeof(descBarrier));
-	descBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	descBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	descBarrier.Transition.pResource = _render_target[_frame_index].Get();
-	descBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	descBarrier.Transition.StateBefore = before;
-	descBarrier.Transition.StateAfter = after;
-	_command_list->ResourceBarrier(1, &descBarrier);
-}
-
-void DX12Renderer::WaitForCommandQueue() 
-{
-	UINT nextIndex = (_frame_index + 1) % FrameBufferCount;
-	UINT64 currentValue = ++_frame_fence_values;
-	UINT64 finishExpected = _frame_fence_values;
-	UINT64 nextFenceValue = _frame_fences->GetCompletedValue();
-
-	_command_queue->Signal(_frame_fences.Get(), currentValue);
-	if (nextFenceValue < finishExpected)
+	HRESULT hr;
+	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&_command_allocators));
+	if (FAILED(hr))
 	{
-		_frame_fences->SetEventOnCompletion(finishExpected, _fence_event);
-		WaitForSingleObject(_fence_event, GpuWaitTimeout);
+		throw std::runtime_error("Failed CreateCommandAllocator");
 	}
+
+	hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, _command_allocators.Get(), nullptr, IID_PPV_ARGS(&_command_list));
+
+	return hr;
 }
 
+HRESULT DX12Renderer::CreateRenderTargetView()
+{
+	HRESULT hr;
+	D3D12_DESCRIPTOR_HEAP_DESC desc_heap;
+	ZeroMemory(&desc_heap, sizeof(desc_heap));
+	desc_heap.NumDescriptors = 2;
+	desc_heap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	desc_heap.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	hr = device->CreateDescriptorHeap(&desc_heap, IID_PPV_ARGS(&_descriptor_heap));
+	if (FAILED(hr)) {
+		return FALSE;
+	}
+
+	UINT strideHandleBytes = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	for (UINT i = 0; i < FrameBufferCount; ++i) {
+		hr = _swap_chain->GetBuffer(i, IID_PPV_ARGS(_render_target[i].GetAddressOf()));
+		if (FAILED(hr)) {
+			return FALSE;
+		}
+		_rtv_handle[i] = _descriptor_heap->GetCPUDescriptorHandleForHeapStart();
+		_rtv_handle[i].ptr += i * strideHandleBytes;
+		device->CreateRenderTargetView(_render_target[i].Get(), nullptr, _rtv_handle[i]);
+	}
+	return hr;
+}
+
+HRESULT DX12Renderer::CreateRootSignature()
+{
+	HRESULT hr;
+
+	CD3DX12_DESCRIPTOR_RANGE cbv;
+	cbv.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0); // b0 レジスタ
+
+	CD3DX12_ROOT_PARAMETER rootParams;
+	rootParams.InitAsDescriptorTable(1, &cbv, D3D12_SHADER_VISIBILITY_VERTEX);
+
+	CD3DX12_ROOT_SIGNATURE_DESC  desc_root_signature{};
+	desc_root_signature.Init(
+		1,
+		&rootParams,
+		0,
+		nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+	);
+
+	desc_root_signature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	ComPtr<ID3DBlob> root_sig_blob, error_blob;
+	hr = D3D12SerializeRootSignature(&desc_root_signature, D3D_ROOT_SIGNATURE_VERSION_1, &root_sig_blob, &error_blob);
+	hr = device->CreateRootSignature(0, root_sig_blob->GetBufferPointer(), root_sig_blob->GetBufferSize(), IID_PPV_ARGS(&_root_signature));
+
+	return hr;
+}
+
+void DX12Renderer::SetViewPort()
+{
+	_viewport.TopLeftX = 0;
+	_viewport.TopLeftY = 0;
+	_viewport.Width = (FLOAT)mWidth;
+	_viewport.Height = (FLOAT)mHeight;
+	_viewport.MinDepth = 0;
+	_viewport.MaxDepth = 1;
+}
+
+// Assets
 BOOL DX12Renderer::LoadAssets() {
 
 	LoadVertexShader();
@@ -267,44 +305,9 @@ BOOL DX12Renderer::LoadAssets() {
 
 	CreatePipelineObject();
 
-	CreateDescriptorHeap();
-
-	//  頂点情報
-	const float k = 0.25;
-	Vertex vertices_array[] = {
-		{ { -k, -k, 0.0f }, { 1.0f, 0.0f,0.0f,1.0f} },
-		{ { -k,  k, 0.0f }, { 0.0f, 1.0f,0.0f,1.0f} },
-		{ {  k,  k, 0.0f }, { 0.0f, 0.0f,1.0f,1.0f} },
-		{ {  k, -k, 0.0f }, { 0.0f, 1.0f,1.0f,1.0f} },
-	};
-	uint32_t indices[] = {
-		0, 1, 2,
-		3, 0, 2
-	};
-
-	_vertex_buffer = CreateBuffer(sizeof(vertices_array), vertices_array);
-	_vertex_buffer_view.BufferLocation = _vertex_buffer->GetGPUVirtualAddress();
-	_vertex_buffer_view.StrideInBytes = sizeof(Vertex);
-	_vertex_buffer_view.SizeInBytes = sizeof(vertices_array);
-
-	_index_buffer = CreateBuffer(sizeof(indices), indices);
-	_index_buffer_view.BufferLocation = _index_buffer->GetGPUVirtualAddress();
-	_index_buffer_view.SizeInBytes = sizeof(indices);
-	_index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
-
-	_index_count = _countof(indices);
-
-	UINT bufferSize = sizeof(ShaderParameters) + 255 & ~255;
-	m_constantBuffers = CreateBuffer(bufferSize, nullptr);
-
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbDesc{};
-	cbDesc.BufferLocation = m_constantBuffers->GetGPUVirtualAddress();
-	cbDesc.SizeInBytes = bufferSize;
-	CD3DX12_CPU_DESCRIPTOR_HANDLE handleCBV(m_heapSrvCbv->GetCPUDescriptorHandleForHeapStart(), ConstantBufferDescriptorBase, m_srvcbvDescriptorSize);
-	device->CreateConstantBufferView(&cbDesc, handleCBV);
-
-	m_cbViews = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_heapSrvCbv->GetGPUDescriptorHandleForHeapStart(), ConstantBufferDescriptorBase, m_srvcbvDescriptorSize);
-
+	object = new Square();
+	object->Initialize();
+	
 	return TRUE;
 }
 
@@ -361,33 +364,6 @@ BOOL DX12Renderer::LoadPixelShader()
 	return TRUE;
 }
 
-HRESULT DX12Renderer::CreateRootSignature()
-{
-	HRESULT hr;
-
-	CD3DX12_DESCRIPTOR_RANGE cbv;
-	cbv.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0); // b0 レジスタ
-	
-	CD3DX12_ROOT_PARAMETER rootParams;
-	rootParams.InitAsDescriptorTable(1, &cbv, D3D12_SHADER_VISIBILITY_VERTEX);
-
-	CD3DX12_ROOT_SIGNATURE_DESC  desc_root_signature{};
-	desc_root_signature.Init(
-		1,
-		&rootParams,
-		0,
-		nullptr,
-		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
-	);
-
-	desc_root_signature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	ComPtr<ID3DBlob> root_sig_blob, error_blob;
-	hr = D3D12SerializeRootSignature(&desc_root_signature, D3D_ROOT_SIGNATURE_VERSION_1, &root_sig_blob, &error_blob);
-	hr = device->CreateRootSignature(0, root_sig_blob->GetBufferPointer(), root_sig_blob->GetBufferSize(), IID_PPV_ARGS(&_root_signature));
-	
-	return hr;
-}
-
 HRESULT DX12Renderer::CreatePipelineObject()
 {
 	HRESULT hr;
@@ -429,101 +405,4 @@ HRESULT DX12Renderer::CreatePipelineObject()
 	hr = device->CreateGraphicsPipelineState(&desc_pipeline_state, IID_PPV_ARGS(_pipeline_state.GetAddressOf()));
 	
 	return hr;
-}
-
-HRESULT DX12Renderer::CreateCommandList()
-{
-	HRESULT hr;
-	hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&_command_allocators));
-	if (FAILED(hr))
-	{
-		throw std::runtime_error("Failed CreateCommandAllocator");
-	}
-
-	hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, _command_allocators.Get(), nullptr, IID_PPV_ARGS(&_command_list));
-
-	return hr;
-}
-
-HRESULT DX12Renderer::CreateRenderTargetView()
-{
-	HRESULT hr;
-	D3D12_DESCRIPTOR_HEAP_DESC desc_heap;
-	ZeroMemory(&desc_heap, sizeof(desc_heap));
-	desc_heap.NumDescriptors = 2;
-	desc_heap.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	desc_heap.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	hr = device->CreateDescriptorHeap(&desc_heap, IID_PPV_ARGS(&_descriptor_heap));
-	if (FAILED(hr)) {
-		return FALSE;
-	}
-
-	UINT strideHandleBytes = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	for (UINT i = 0; i < FrameBufferCount; ++i) {
-		hr = _swap_chain->GetBuffer(i, IID_PPV_ARGS(_render_target[i].GetAddressOf()));
-		if (FAILED(hr)) {
-			return FALSE;
-		}
-		_rtv_handle[i] = _descriptor_heap->GetCPUDescriptorHandleForHeapStart();
-		_rtv_handle[i].ptr += i * strideHandleBytes;
-		device->CreateRenderTargetView(_render_target[i].Get(), nullptr, _rtv_handle[i]);
-	}
-	return hr;
-}
-
-HRESULT DX12Renderer::CreateDescriptorHeap()
-{
-	HRESULT hr;
-	UINT count = FrameBufferCount + 1;
-	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{
-	  D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-	  count,
-	  D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-	  0
-	};
-	hr = device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_heapSrvCbv));
-	if (FAILED(hr)) {
-		return FALSE;
-	}
-	m_srvcbvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-	return hr;
-}
-
-void DX12Renderer::SetViewPort()
-{
-	_viewport.TopLeftX = 0;
-	_viewport.TopLeftY = 0;
-	_viewport.Width = (FLOAT)mWidth;
-	_viewport.Height = (FLOAT)mHeight;
-	_viewport.MinDepth = 0;
-	_viewport.MaxDepth = 1;
-}
-
-ComPtr<ID3D12Resource1> DX12Renderer::CreateBuffer(UINT bufferSize, const void* initialData)
-{
-	HRESULT hr;
-	ComPtr<ID3D12Resource1> buffer;
-	hr = device->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-		D3D12_HEAP_FLAG_NONE,
-		&CD3DX12_RESOURCE_DESC::Buffer(bufferSize),
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&buffer)
-	);
-
-	if (SUCCEEDED(hr) && initialData != nullptr)
-	{
-		void* mapped;
-		CD3DX12_RANGE range(0, 0);
-		hr = buffer->Map(0, &range, &mapped);
-		if (SUCCEEDED(hr))
-		{
-			memcpy(mapped, initialData, bufferSize);
-			buffer->Unmap(0, nullptr);
-		}
-	}
-
-	return buffer;
 }
