@@ -17,7 +17,10 @@ DX12Renderer::~DX12Renderer() {
 
 void DX12Renderer::Update()
 {
-	object->update();
+	for (int i = 0; i < mSquareList.size(); i++)
+	{
+		mSquareList[i]->update();
+	}
 }
 
 void DX12Renderer::WaitForCommandQueue()
@@ -78,7 +81,10 @@ void DX12Renderer::PopulateCommandList()
 
 	mCmdList->OMSetRenderTargets(1, &mRTVHandle[mFrameIndex], TRUE, nullptr);
 
-	object->draw();
+	for (int i = 0; i < mSquareList.size(); i++)
+	{
+		mSquareList[i]->draw();
+	}
 
 	SetResourceBarrier(D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 
@@ -305,8 +311,16 @@ BOOL DX12Renderer::LoadAssets() {
 
 	CreatePipelineObject();
 
-	object = new Square();
-	object->Initialize();
+	mSquareList.clear();
+	mSquareList.push_back(new Square());
+	mSquareList.push_back(new Square());
+	mSquareList.push_back(new Square());
+	for (int i = 0; i < mSquareList.size(); i++)
+	{
+		mSquareList[i]->Initialize();
+	}
+	mSquareList[1]->SetPositionX(-0.525);
+	mSquareList[2]->SetPositionX(0.525);
 	
 	return TRUE;
 }

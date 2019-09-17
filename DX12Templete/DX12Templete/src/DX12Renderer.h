@@ -102,7 +102,7 @@ private:
 private:
 	BOOL    LoadAssets();
 	
-	Square* object;
+	std::vector<Square*> mSquareList;
 
 	// Shader
 	struct ShaderObject {

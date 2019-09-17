@@ -71,7 +71,6 @@ void Square::Initialize()
 
 void Square::update()
 {
-	SetRotateX(1.0);
 }
 
 void Square::draw()

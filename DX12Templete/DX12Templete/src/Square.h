@@ -89,7 +89,7 @@ public:
 	void update();
 	void draw();
 
-	void SetPositionX(float pos){}
+	void SetPositionX(float pos){ mWorldMtrix = XMMatrixTranslation(pos, 0.0, 0.0); }
 	void SetPositionY(float pos){}
 	void SetPositionZ(float pos){}
 	void SetRotateY(float rad);
