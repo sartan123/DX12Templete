@@ -26,12 +26,40 @@ MAKE_SMART_COM_PTR(IDXGIFactory4);
 MAKE_SMART_COM_PTR(IDXGIAdapter1);
 MAKE_SMART_COM_PTR(ID3D12Fence);
 MAKE_SMART_COM_PTR(ID3D12CommandAllocator);
-MAKE_SMART_COM_PTR(ID3D12Resource);
+MAKE_SMART_COM_PTR(ID3D12Resource1);
 MAKE_SMART_COM_PTR(ID3D12DescriptorHeap);
 MAKE_SMART_COM_PTR(ID3D12Debug);
 MAKE_SMART_COM_PTR(ID3D12StateObject);
 MAKE_SMART_COM_PTR(ID3D12RootSignature);
 MAKE_SMART_COM_PTR(ID3DBlob);
+
+struct Rotate {
+	Rotate(float a = 0.0, float b = 0.0f, float c = 0.0f) :x(a), y(b), z(c) {}
+	float x;
+	float y;
+	float z;
+
+	Rotate operator=(Rotate rotate) {
+		this->x = rotate.x;
+		this->y = rotate.y;
+		this->z = rotate.z;
+		return *this;
+	}
+};
+
+struct Position {
+	Position(float a = 0.0, float b = 0.0f, float c = 0.0f) :x(a), y(b), z(c) {}
+	float x;
+	float y;
+	float z;
+
+	Position operator=(Position rotate) {
+		this->x = rotate.x;
+		this->y = rotate.y;
+		this->z = rotate.z;
+		return *this;
+	}
+};
 
 class Square
 {
@@ -58,19 +86,36 @@ public:
 	Square() {}
 	~Square() {}
 	void Initialize();
+	void update();
 	void draw();
+
+	void SetPositionX(float pos){}
+	void SetPositionY(float pos){}
+	void SetPositionZ(float pos){}
+	void SetRotateY(float rad);
+	void SetRotateX(float rad);
+	void SetRotateZ(float rad);
 private:
-	ComPtr<ID3D12Resource>  _vertex_buffer;
-	ComPtr<ID3D12Resource1> _index_buffer;
-	ComPtr<ID3D12Resource1> _constant_buffer;
-	UINT  m_srvcbvDescriptorSize;
-	UINT  _index_count;
-	UINT  _vertex_count;
-	float mRadian;
-
-	ComPtr<ID3D12DescriptorHeap> m_heapSrvCbv;
+	ID3D12Resource1Ptr  mVertexBuffer;
+	ID3D12Resource1Ptr mIndexBuffer;
+	ID3D12Resource1Ptr mConstantBuffer;
+	ID3D12DescriptorHeapPtr m_heapSrvCbv;
 	D3D12_GPU_DESCRIPTOR_HANDLE m_cbViews;
+	UINT  m_srvcbvDescriptorSize;
+	UINT  mIndexCount;
+	UINT  mVertexCount;
 
-	ComPtr<ID3D12Resource1> CreateBuffer(UINT bufferSize, const void* initialData);
+	XMVECTORF32 mPos;
+	Rotate mRotate;
+	XMMATRIX mWorldMtrix;
+	XMMATRIX mViewMatrix;
+	XMMATRIX mProjMatrix;
+
+
+	ID3D12Resource1Ptr CreateBuffer(UINT bufferSize, const void* initialData);
+
+	void SetConstantBuffer();
+	D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView();
+	D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView();
 };
 

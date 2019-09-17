@@ -27,7 +27,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPTSTR lpCmdLine, in
 	ShowWindow(hwnd, nCmdShow);
 	UpdateWindow(hwnd);
 
-	//DXRenderer* renderer = new DXRenderer(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
 	DX12Renderer* renderer = new DX12Renderer();
 	renderer->Initialize(hwnd, WINDOW_WIDTH, WINDOW_HEIGHT);
 
@@ -41,6 +40,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPTSTR lpCmdLine, in
 		}
 		else
 		{
+			renderer->Update();
 			renderer->Render();
 		}
 	}

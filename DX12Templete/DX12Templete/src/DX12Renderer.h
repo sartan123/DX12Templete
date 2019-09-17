@@ -26,11 +26,12 @@ MAKE_SMART_COM_PTR(ID3D12CommandQueue);
 MAKE_SMART_COM_PTR(IDXGISwapChain3);
 MAKE_SMART_COM_PTR(IDXGIFactory4);
 MAKE_SMART_COM_PTR(IDXGIAdapter1);
-MAKE_SMART_COM_PTR(ID3D12Fence);
+MAKE_SMART_COM_PTR(ID3D12Fence1);
 MAKE_SMART_COM_PTR(ID3D12CommandAllocator);
 MAKE_SMART_COM_PTR(ID3D12Resource);
 MAKE_SMART_COM_PTR(ID3D12DescriptorHeap);
 MAKE_SMART_COM_PTR(ID3D12Debug);
+MAKE_SMART_COM_PTR(ID3D12PipelineState);
 MAKE_SMART_COM_PTR(ID3D12StateObject);
 MAKE_SMART_COM_PTR(ID3D12RootSignature);
 MAKE_SMART_COM_PTR(ID3DBlob);
@@ -41,8 +42,6 @@ class DX12Renderer {
 		XMFLOAT3 Pos;
 		XMFLOAT4 Color;
 	};
-
-
 public:
 	static constexpr int FrameBufferCount = 2;
 	static constexpr UINT GpuWaitTimeout = (10 * 1000);
@@ -55,34 +54,34 @@ public:
 	void Render();
 	void Destroy();
 
-	static ComPtr<ID3D12Device5> GetDevice() { return device; }
-	static ComPtr<ID3D12GraphicsCommandList> GetCmdList() { return _command_list; }
+	static ID3D12Device5Ptr GetDevice() { return mDevice; }
+	static ID3D12GraphicsCommandList4Ptr GetCmdList() { return mCmdList; }
 private:
 	HWND    mHwnd;
 	int     mWidth;
 	int     mHeight;
 
-	UINT _frame_index;
+	UINT mFrameIndex;
 
-	HANDLE  _fence_event;
-	ComPtr<ID3D12Fence1> _frame_fences;
-	UINT64 _frame_fence_values;
+	HANDLE  mFenceEvent;
+	ID3D12Fence1Ptr mFrameFence;
+	UINT64 mFrameFenceValue;
 
-	ComPtr<ID3D12CommandAllocator> _command_allocators;
-	IDXGIFactory4Ptr factory;
-	static ComPtr<ID3D12Device5> device;
-	ComPtr<ID3D12CommandQueue> _command_queue;
-	static ComPtr<ID3D12GraphicsCommandList> _command_list;
-	ComPtr<IDXGISwapChain3> _swap_chain;
+	ID3D12CommandAllocatorPtr mCmdAllocator;
+	IDXGIFactory4Ptr mFactory;
+	static ID3D12Device5Ptr mDevice;
+	ID3D12CommandQueuePtr mCmdQueue;
+	static ID3D12GraphicsCommandList4Ptr mCmdList;
+	ComPtr<IDXGISwapChain3> mSwapChain;
 
-	ComPtr<ID3D12DescriptorHeap> _descriptor_heap;
-	ComPtr<ID3D12Resource> _render_target[FrameBufferCount];
-	D3D12_CPU_DESCRIPTOR_HANDLE _rtv_handle[FrameBufferCount];
+	ID3D12DescriptorHeapPtr mDescriptorHeap;
+	ID3D12ResourcePtr mRenderTarget[FrameBufferCount];
+	D3D12_CPU_DESCRIPTOR_HANDLE mRTVHandle[FrameBufferCount];
 
-	ComPtr<ID3D12RootSignature> _root_signature;
-	ComPtr<ID3D12PipelineState> _pipeline_state;
+	ID3D12RootSignaturePtr mRootSignature;
+	ID3D12PipelineStatePtr mPipelineState;
 
-	D3D12_VIEWPORT _viewport;
+	D3D12_VIEWPORT mViewPort;
 
 
 	void LoadPipeline();
@@ -110,8 +109,8 @@ private:
 		void* binaryPtr;
 		int   size;
 	};
-	ShaderObject _g_vertex_shader;
-	ShaderObject _g_pixel_shader;
+	ShaderObject mVertexShader;
+	ShaderObject mPixelShader;
 
 	BOOL	LoadVertexShader();
 	BOOL	LoadPixelShader();
