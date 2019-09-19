@@ -61,6 +61,30 @@ struct Position {
 	}
 };
 
+static const D3D12_HEAP_PROPERTIES kUploadHeapProps =
+{
+	D3D12_HEAP_TYPE_UPLOAD,
+	D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+	D3D12_MEMORY_POOL_UNKNOWN,
+	0,
+	0,
+};
+static const D3D12_HEAP_PROPERTIES kDefaultHeapProps =
+{
+	D3D12_HEAP_TYPE_DEFAULT,
+	D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+	D3D12_MEMORY_POOL_UNKNOWN,
+	0,
+	0
+};
+
+struct AccelerationStructureBuffers
+{
+	ID3D12Resource1Ptr pScratch;
+	ID3D12Resource1Ptr pResult;
+	ID3D12Resource1Ptr pInstanceDesc;    // Used only for top-level AS
+};
+
 class Square
 {
 	struct Vertex {
@@ -89,12 +113,18 @@ public:
 	void update();
 	void draw();
 
+	void CreateAccelerationStructure();
+	void SetAccelerationStructures();
+
+
 	void SetPositionX(float pos){ mWorldMtrix = XMMatrixTranslation(pos, 0.0, 0.0); }
 	void SetPositionY(float pos){}
 	void SetPositionZ(float pos){}
 	void SetRotateY(float rad);
 	void SetRotateX(float rad);
 	void SetRotateZ(float rad);
+
+	ID3D12Resource1Ptr GetVertexBuffer() { return mVertexBuffer; }
 private:
 	ID3D12Resource1Ptr  mVertexBuffer;
 	ID3D12Resource1Ptr mIndexBuffer;
@@ -117,5 +147,15 @@ private:
 	void SetConstantBuffer();
 	D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView();
 	D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView();
+
+	AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12Resource1Ptr pVB);
+	AccelerationStructureBuffers createTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12Resource1Ptr pBottomLevelAS, uint64_t& tlasSize);
+	
+	AccelerationStructureBuffers mTopLevelBuffers;
+	AccelerationStructureBuffers mBottomLevelBuffers;
+
+	uint64_t mTlasSize = 0;
+	ID3D12Resource1Ptr mTopLevelAS;
+	ID3D12Resource1Ptr mBottomLevelAS;
 };
 

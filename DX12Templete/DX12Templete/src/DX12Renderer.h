@@ -35,6 +35,10 @@ MAKE_SMART_COM_PTR(ID3D12PipelineState);
 MAKE_SMART_COM_PTR(ID3D12StateObject);
 MAKE_SMART_COM_PTR(ID3D12RootSignature);
 MAKE_SMART_COM_PTR(ID3DBlob);
+MAKE_SMART_COM_PTR(IDxcCompiler);
+MAKE_SMART_COM_PTR(IDxcLibrary);
+MAKE_SMART_COM_PTR(IDxcBlobEncoding);
+MAKE_SMART_COM_PTR(IDxcOperationResult);
 
 class DX12Renderer {
 
@@ -98,6 +102,12 @@ private:
 	void PopulateCommandList();
 	void SetResourceBarrier(D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
 	void WaitForCommandQueue();
+	void InitializeAccelarationStructure();
+
+	// RayTracing
+	void CreateRayTracingPipelineStateObject();
+	ID3D12StateObjectPtr mRayTracePipelineState;
+	ID3D12RootSignaturePtr mRayTraceRootSignature;
 
 private:
 	BOOL    LoadAssets();

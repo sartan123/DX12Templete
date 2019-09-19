@@ -165,6 +165,7 @@
     <ClInclude Include="src\BasicRenderer.h" />
     <ClInclude Include="src\d3dx12.h" />
     <ClInclude Include="src\DX12Renderer.h" />
+    <ClInclude Include="src\dxcapi.use.h" />
     <ClInclude Include="src\Square.h" />
     <ClInclude Include="src\stddef.h" />
     <ClInclude Include="src\utility.h" />
