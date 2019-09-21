@@ -139,7 +139,7 @@ void DX12Renderer::LoadPipeline()
 
 	SetViewPort();
 
-	CreateRayTracingPipelineStateObject();
+	//CreateRayTracingPipelineStateObject();
 
 }
 
@@ -585,15 +585,15 @@ struct DxilLibrary
 	std::vector<std::wstring> exportName;
 };
 
-static const WCHAR* kRayGenShader = L"rayGen";
+static const WCHAR* kRayGenShader = L"raygeneration";
 static const WCHAR* kMissShader = L"miss";
-static const WCHAR* kClosestHitShader = L"chs";
-static const WCHAR* kHitGroup = L"HitGroup";
+static const WCHAR* kClosestHitShader = L"closesthit";
+static const WCHAR* kHitGroup = L"closesthit";
 
 DxilLibrary createDxilLibrary()
 {
 	// Compile the shader
-	ID3DBlobPtr pDxilLib = compileLibrary(L"Data/04-Shaders.hlsl", L"lib_6_3");
+	ID3DBlobPtr pDxilLib = compileLibrary(L"..\\DX12Templete\\resource\\RayShaders.hlsl", L"lib_6_3");
 	const WCHAR* entryPoints[] = { kRayGenShader, kMissShader, kClosestHitShader };
 	return DxilLibrary(pDxilLib, entryPoints, arraysize(entryPoints));
 }

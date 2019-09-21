@@ -11,10 +11,12 @@
 #include "stddef.h"
 #include "d3dx12.h"
 #include "Square.h"
+#include "dxcapi.use.h"
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "dxguid.lib")
+#pragma comment(lib, "dxcompiler.lib")
 
 using namespace DirectX;
 using namespace Microsoft::WRL;

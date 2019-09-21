@@ -66,7 +66,7 @@ public:
   }
 
   HRESULT Initialize() {
-    return InitializeInternal(L"dxcompiler.dll", "DxcCreateInstance");
+    return InitializeInternal(L"..\\DX12Templete\\dxcompiler\\dxcompiler.dll", "DxcCreateInstance");
   }
 
   HRESULT InitializeForDll(_In_z_ const wchar_t* dll, _In_z_ const char* entryPoint) {
